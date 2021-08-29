@@ -1,41 +1,51 @@
 package main
 
 import (
-    "fmt"
-    "github.com/confluentinc/confluent-kafka-go/kafka"
+	"fmt"
+	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"os"
 )
 
 func main() {
 
-    fmt.Println("Initializing consumer...")
+	fmt.Println("Initializing consumer...")
 
-    consumer, err := kafka.NewConsumer(
-        &kafka.ConfigMap {
-            "bootstrap.servers": "localhost",
-            "group.id": "myGroup",
-            "auto.offset.reset": "earliest",
-        },
-    )
+	consumer, err := kafka.NewConsumer(
+		&kafka.ConfigMap{
+			"bootstrap.servers": "localhost",
+			"group.id":          "myGroup",
+			"auto.offset.reset": "earliest",
+		},
+	)
 
-    if err != nil {
-        panic(err)
-    }
-    defer consumer.Close()
+	if err != nil {
+		panic(err)
+	}
+	defer consumer.Close()
 
-    consumer.SubscribeTopics(
-        []string{ "myTopic", "^aRegex.*[Tt]opic" },
-        nil,
-    )
+	consumer.Subscribe("myTopic",
+		nil,
+	)
 
-    fmt.Println("Beginning message polling...")
-    for {
+	fmt.Println("Beginning message polling...")
 
-        msg, err := consumer.ReadMessage(-1)
-        if err == nil {
-            fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
-        } else {
-            fmt.Printf("Consumer error: %v (%v)\n", err, msg)
-        }
+	run := true
+	for run == true {
 
-    }
+		polledEvent := consumer.Poll(0)
+		switch event := polledEvent.(type) {
+		case *kafka.Message:
+			fmt.Printf(
+				"%% Message on %s:\n%s\n",
+				event.TopicPartition,
+				string(event.Value),
+			)
+		case kafka.PartitionEOF:
+			fmt.Printf("%% Reached %v\n", event)
+		case kafka.Error:
+			fmt.Fprintf(os.Stderr, "%% Error: %v\n", event)
+			run = false
+		}
+	}
+
 }
